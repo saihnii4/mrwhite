@@ -1,10 +1,18 @@
 use discord::model::Event;
 use discord::Discord;
+use dotenv::dotenv;
 use std::env;
 
 fn main() {
+    dotenv().ok();
+
+    let token = env::vars()
+        .find(|x| x.0 == "TOKEN")
+        .expect("couldn't find token in dotenv")
+        .1;
+
     let discord =
-        Discord::from_bot_token(&env::var("").expect("Expected token")).expect("login failed");
+        Discord::from_bot_token(&env::var(token).expect("Expected token")).expect("login failed");
     let (mut connection, _) = discord.connect().expect("connect failed");
     println!("Ready!");
     loop {
