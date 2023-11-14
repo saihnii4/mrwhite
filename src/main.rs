@@ -1,41 +1,44 @@
-use discord::model::Event;
-use discord::Discord;
-use dotenv::dotenv;
 use std::env;
 
-fn main() {
-    dotenv().ok();
+use serenity::async_trait;
+use serenity::prelude::*;
+use serenity::model::channel::Message;
+use serenity::framework::standard::macros::{command, group};
+use serenity::framework::standard::{StandardFramework, CommandResult};
 
-    let token = env::vars()
-        .find(|x| x.0 == "TOKEN")
-        .expect("couldn't find token in dotenv")
-        .1;
+#[group]
+#[commands(ping)]
+struct General;
 
-    let discord =
-        Discord::from_bot_token(&env::var(token).expect("Expected token")).expect("login failed");
-    let (mut connection, _) = discord.connect().expect("connect failed");
-    println!("Ready!");
-    loop {
-        match connection.recv_event() {
-            Ok(Event::MessageCreate(message)) => {
-                println!("{} says: {}", message.author.name, message.content);
-                if message.content == "!test" {
-                    let _ = discord.send_message(message.channel_id, "Hello World", "", false);
-                } else {
-                    let _ = discord.send_message(
-                        message.channel_id,
-                        format!("Unknown message `{}`", message.content).as_str(), // susceptible to escaping
-                        "",
-                        false,
-                    );
-                }
-            }
-            Ok(_) => {}
-            Err(discord::Error::Closed(code, body)) => {
-                println!("Gateway closed on us with code {:?}: {}", code, body);
-                break;
-            }
-            Err(err) => println!("Receive error: {:?}", err),
-        }
+struct Handler;
+
+#[async_trait]
+impl EventHandler for Handler {}
+
+#[tokio::main]
+async fn main() {
+    let framework = StandardFramework::new()
+        .configure(|c| c.prefix("~")) // set the bot's prefix to "~"
+        .group(&GENERAL_GROUP);
+
+    // Login with a bot token from the environment
+    let token = env::var("DISCORD_TOKEN").expect("token");
+    let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
+    let mut client = Client::builder(token, intents)
+        .event_handler(Handler)
+        .framework(framework)
+        .await
+        .expect("Error creating client");
+
+    // start listening for events by starting a single shard
+    if let Err(why) = client.start().await {
+        println!("An error occurred while running the client: {:?}", why);
     }
+}
+
+#[command]
+async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
+    msg.reply(ctx, "Pong!").await?;
+
+    Ok(())
 }
